@@ -1,0 +1,19 @@
+4 c
+4 d
+4 e
+4 f
+4 g
+3 Base1
+1 Center
+1 Corner1
+2 Corner2
+1 Top
+1 Bottom
+18 Washer
+4 a s
+4 b s 
+4 c s
+4 d s
+4 e s
+4 f s
+4 g s

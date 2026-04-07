@@ -1,0 +1,65 @@
+title: Servo Clock
+views:
+  - title: Servo Clock
+    path: servo-clock
+    icon: mdi:clock-digital
+    cards:
+
+      # ── Status bar ─────────────────────────────────────────────────────────
+      - type: horizontal-stack
+        cards:
+          - type: entity
+            entity: sensor.servo_clock_display_time
+            name: Display Time
+            icon: mdi:clock-digital
+          - type: entity
+            entity: sensor.servo_clock_rtc_time
+            name: RTC Time
+            icon: mdi:clock-outline
+          - type: entity
+            entity: sensor.servo_clock_last_sync
+            name: Last NTP Sync
+            icon: mdi:sync
+            device_class: timestamp
+
+      # ── Controls ───────────────────────────────────────────────────────────
+      - type: entities
+        title: Controls
+        entities:
+          - entity: switch.servo_clock_running
+            name: Clock Running
+            icon: mdi:play-pause
+          - entity: select.servo_clock_timezone
+            name: Timezone
+            icon: mdi:earth
+          - type: button
+            entity: button.servo_clock_sync_rtc
+            name: Sync RTC from NTP
+            icon: mdi:sync-circle
+            action_name: Sync Now
+
+      # ── System info ────────────────────────────────────────────────────────
+      - type: glance
+        title: System
+        columns: 3
+        entities:
+          - entity: sensor.servo_clock_wifi_rssi
+            name: WiFi RSSI
+            icon: mdi:wifi
+          - entity: sensor.servo_clock_ip
+            name: IP Address
+            icon: mdi:ip-network
+          - entity: binary_sensor.servo_clock
+            name: Online
+            icon: mdi:lan-connect
+
+      # ── Advanced: serial command ────────────────────────────────────────────
+      - type: entities
+        title: Advanced
+        entities:
+          - entity: text.servo_clock_serial_in
+            name: Send Command
+            icon: mdi:console-line
+          - entity: sensor.servo_clock_serial_last_command
+            name: Last Command
+            icon: mdi:history

@@ -1,0 +1,14 @@
+# Credentials — never commit
+ServoClock/secrets.h
+
+# Arduino build output
+build/
+*.bin
+*.elf
+
+# Claude Code internal
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
