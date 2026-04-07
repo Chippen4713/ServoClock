@@ -57,6 +57,21 @@ bool anyServoMoving() {
   return false;
 }
 
+static void updateBoardLeds() {
+  bool board1Moving = false;
+  bool board2Moving = false;
+
+  for (int i = 0; i <= 13; i++) {
+    if (currentPos[i] != servoTargetPos[i]) { board1Moving = true; break; }
+  }
+  for (int i = 14; i <= 27; i++) {
+    if (currentPos[i] != servoTargetPos[i]) { board2Moving = true; break; }
+  }
+
+  board1.setPWM(LED_BOARD1_PIN, 0, board1Moving ? 4095 : 0);
+  board2.setPWM(LED_BOARD2_PIN, 0, board2Moving ? 4095 : 0);
+}
+
 void updateServoPower() {
   if (!servoPowerEnabled) return;
 
@@ -128,6 +143,8 @@ void updateServoSmooth() {
 
     writeServoPwm(i, currentPos[i]);
   }
+
+  updateBoardLeds();
 }
 
 

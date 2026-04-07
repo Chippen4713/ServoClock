@@ -64,6 +64,20 @@ void updateWiFi() {
   }
 }
 
+static unsigned long ledBlinkOffUntilMs = 0;
+
+void updateLedState() {
+  if (!mqtt.connected()) {
+    digitalWrite(LED_ESP_PINT, LOW);
+    return;
+  }
+  if (millis() < ledBlinkOffUntilMs) {
+    digitalWrite(LED_ESP_PINT, LOW);
+  } else {
+    digitalWrite(LED_ESP_PINT, HIGH);
+  }
+}
+
 void mqttPublishRetained(const char* topic, const String& payload) {
   if (!mqtt.connected()) {
     Serial.print("[MQTT] Skipped publish, not connected: ");
@@ -72,6 +86,11 @@ void mqttPublishRetained(const char* topic, const String& payload) {
   }
 
   bool ok = mqtt.publish(topic, payload.c_str(), true);
+
+  if (ok) {
+    ledBlinkOffUntilMs = millis() + 80;
+    digitalWrite(LED_ESP_PINT, LOW);
+  }
 
   Serial.print("[MQTT] ");
   Serial.print(ok ? "Published " : "FAILED ");
@@ -479,6 +498,8 @@ void maintainConnectivity() {
       mqtt.loop();
     }
   }
+
+  updateLedState();
 
   if (mqtt.connected() && millis() - lastWifiStatePublish > 60000) {
     lastWifiStatePublish = millis();

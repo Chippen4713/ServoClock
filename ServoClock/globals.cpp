@@ -7,6 +7,8 @@ virtuabotixRTC clockRTC(D0, D3, D4);
 const int RELAY_BOARD1_PIN = D5;
 const int RELAY_BOARD2_PIN = D6;
 const int LED_ESP_PINT = D7;
+const int LED_BOARD1_PIN = 14;
+const int LED_BOARD2_PIN = 14;
 const int PIR_PIN = D8;
 
 
