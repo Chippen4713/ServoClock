@@ -2,8 +2,8 @@
 #include "secrets.h"
 
 // Define Pins locations
-Adafruit_PWMServoDriver board1(0x40);
-Adafruit_PWMServoDriver board2(0x41);
+Adafruit_PWMServoDriver board1(0x41);
+Adafruit_PWMServoDriver board2(0x40);
 virtuabotixRTC clockRTC(D0, D3, D4);
 const int RELAY_BOARD1_PIN = D5;
 const int RELAY_BOARD2_PIN = D6;
@@ -17,7 +17,7 @@ const int PIR_PIN = D8;
 
 bool servoPowerEnabled = false;
 unsigned long servoPowerOffAtMs = 0;
-unsigned long servoPowerHoldMs = 1500;
+unsigned long servoPowerHoldMs = 3000;
 
 ServoCal cal[28];
 uint16_t currentPos[28];

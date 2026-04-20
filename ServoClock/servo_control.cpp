@@ -32,12 +32,16 @@ void setClockServoActual(int servoNum, uint16_t actualPulse) {
   writeServoPwm(servoNum, actualPulse);
   Serial.printf("Servo %d -> DIRECT actual=%u\n", servoNum, actualPulse);
 }
+static unsigned long servoPowerOnMs = 0;
+static const unsigned long SERVO_POWER_STABILIZE_MS = 1000;
+
 void setServoPower(bool enabled) {
   // Change HIGH/LOW if your relay modules are active LOW
   digitalWrite(RELAY_BOARD1_PIN, enabled ? LOW : HIGH);
   digitalWrite(RELAY_BOARD2_PIN, enabled ? LOW : HIGH);
 
   servoPowerEnabled = enabled;
+  if (enabled) servoPowerOnMs = millis();
 
   Serial.printf("Servo power %s\n", enabled ? "ON" : "OFF");
 }
@@ -74,6 +78,12 @@ static void updateBoardLeds() {
 }
 
 void updateServoPower() {
+  if (currentMode == MODE_SERVO_CAL) {
+    if (!servoPowerEnabled) setServoPower(true);
+    servoPowerOffAtMs = 0;
+    return;
+  }
+
   if (!servoPowerEnabled) return;
 
   if (anyServoMoving()) {
@@ -123,23 +133,31 @@ void updateServoSmooth() {
 
   unsigned long now = millis();
 
-  for (int i = 0; i < 28; i++) {
+  // Wait for relay/power to stabilize before moving
+  if (now - servoPowerOnMs < SERVO_POWER_STABILIZE_MS) return;
+
+  // Staggered tick — alternate board1 (0-13) and board2 (14-27) each step
+  // This halves peak current draw and reduces PSU voltage sag
+  static unsigned long lastStepMs = 0;
+  static bool board1Turn = true;
+  if (now - lastStepMs < servoStepDelayMs) return;
+  lastStepMs = now;
+
+  int start = board1Turn ?  0 : 14;
+  int end   = board1Turn ? 14 : 28;
+  board1Turn = !board1Turn;
+
+  for (int i = start; i < end; i++) {
     uint16_t current = currentPos[i];
-    uint16_t target = servoTargetPos[i];
-
+    uint16_t target  = servoTargetPos[i];
     if (current == target) continue;
-    if (now - servoLastStepMs[i] < servoStepDelayMs) continue;
-
-    servoLastStepMs[i] = now;
 
     if (current < target) {
-      uint32_t next = current + servoStepSize;
-      if (next > target) next = target;
-      currentPos[i] = (uint16_t)next;
+      uint32_t next = (uint32_t)current + servoStepSize;
+      currentPos[i] = (next >= target) ? target : (uint16_t)next;
     } else {
       int next = (int)current - (int)servoStepSize;
-      if (next < target) next = target;
-      currentPos[i] = (uint16_t)next;
+      currentPos[i] = (next <= (int)target) ? target : (uint16_t)next;
     }
 
     writeServoPwm(i, currentPos[i]);
@@ -208,9 +226,24 @@ void setDefaults() {
 }
 
 
+void moveAllToClosed() {
+  requestServoPowerHold();
+  for (int i = 0; i < 28; i++) {
+    servoTargetPos[i] = cal[i].closed;
+  }
+}
+
+void moveAllToOpen() {
+  requestServoPowerHold();
+  for (int i = 0; i < 28; i++) {
+    servoTargetPos[i] = cal[i].open;
+  }
+}
+
 void applyDigitPatternToServos(int result[28]) {
   for (int i = 0; i < 28; i++) {
-    if (result[i] == 1) moveToStored(i, 'o');
-    else moveToStored(i, 'c');
+    bool open = (result[i] == 1);
+    if (cal[i].inverted) open = !open;
+    moveToStored(i, open ? 'o' : 'c');
   }
 }

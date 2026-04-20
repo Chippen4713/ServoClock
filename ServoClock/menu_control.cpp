@@ -158,6 +158,11 @@ void printServoMenu() {
   Serial.println("  l          load calibration file");
 
   Serial.println();
+  Serial.println("All servos:");
+  Serial.println("  ao         move ALL servos to open");
+  Serial.println("  ac         move ALL servos to closed");
+
+  Serial.println();
   Serial.println("Other:");
   Serial.println("  h          show this menu");
   Serial.println("  m          back to main menu");
@@ -214,6 +219,8 @@ void printRunMenu() {
   Serial.println("start            start clock");
   Serial.println("stop             stop clock");
   Serial.println("time             show current RTC time");
+  Serial.println("ao               move ALL servos to open");
+  Serial.println("ac               move ALL servos to closed");
   Serial.println("h                show this menu");
   Serial.println("m                back to main menu");
 }
@@ -279,6 +286,10 @@ static void webLogHelp(AppMode m) {
       webLog("  w          write calibration file");
       webLog("  l          load calibration file");
       webLog("");
+      webLog("All servos:");
+      webLog("  ao         move ALL servos to open");
+      webLog("  ac         move ALL servos to closed");
+      webLog("");
       webLog("Other:");
       webLog("  h          show this menu");
       webLog("  m          back to main menu");
@@ -340,6 +351,8 @@ static void webLogHelp(AppMode m) {
       webLog("start            start clock");
       webLog("stop             stop clock");
       webLog("time             show current RTC time");
+      webLog("ao               move ALL servos to open");
+      webLog("ac               move ALL servos to closed");
       webLog("h                show this menu");
       webLog("m                back to main menu");
       break;
@@ -349,6 +362,11 @@ static void webLogHelp(AppMode m) {
 }
 
 void setMode(AppMode newMode) {
+  if (newMode == MODE_SERVO_CAL) {
+    setServoPower(true);
+  } else if (currentMode == MODE_SERVO_CAL) {
+    servoPowerOffAtMs = millis() + servoPowerHoldMs;
+  }
   currentMode = newMode;
   showCurrentMenu();
   webLogf("[SYS] Mode: %s", modeName(newMode));
@@ -529,12 +547,20 @@ static bool handleServoToken(const String& token, const String& nextToken, bool 
   }
 
   if (token == "i") {
+    // Swap open <-> closed so all downstream code naturally uses the right position
+    uint16_t tmp          = cal[selectedServo].open;
+    cal[selectedServo].open   = cal[selectedServo].closed;
+    cal[selectedServo].closed = tmp;
     cal[selectedServo].inverted = !cal[selectedServo].inverted;
-    setClockServoRaw(selectedServo, currentPos[selectedServo]);
+
+    // Move to the new open position so the effect is immediately visible
+    moveServoSmooth(selectedServo, cal[selectedServo].open);
 
     Serial.println();
-    Serial.printf("[OK] Servo %d invert toggled\n", selectedServo);
-    webLogf("[OK] Servo %d inverted=%s", selectedServo, cal[selectedServo].inverted ? "true" : "false");
+    Serial.printf("[OK] Servo %d open<->closed swapped, inverted=%s\n",
+                  selectedServo, cal[selectedServo].inverted ? "true" : "false");
+    webLogf("[OK] Servo %d swapped  open=%u closed=%u",
+            selectedServo, cal[selectedServo].open, cal[selectedServo].closed);
     printServo(selectedServo);
     printPrompt();
     return true;
@@ -649,6 +675,24 @@ static bool handleServoToken(const String& token, const String& nextToken, bool 
   if (token == "pa") {
     Serial.println();
     printAll();
+    printPrompt();
+    return true;
+  }
+
+  if (token == "ao") {
+    moveAllToOpen();
+    Serial.println();
+    Serial.println("[OK] All servos -> OPEN");
+    webLog("[OK] All servos -> OPEN");
+    printPrompt();
+    return true;
+  }
+
+  if (token == "ac") {
+    moveAllToClosed();
+    Serial.println();
+    Serial.println("[OK] All servos -> CLOSED");
+    webLog("[OK] All servos -> CLOSED");
     printPrompt();
     return true;
   }
@@ -962,6 +1006,20 @@ void handleRunCommand(String cmd) {
   else if (cmd == "time") {
     Serial.println();
     printRTCNow();
+    printPrompt();
+  }
+  else if (cmd == "ao") {
+    moveAllToOpen();
+    Serial.println();
+    Serial.println("[OK] All servos -> OPEN");
+    webLog("[OK] All servos -> OPEN");
+    printPrompt();
+  }
+  else if (cmd == "ac") {
+    moveAllToClosed();
+    Serial.println();
+    Serial.println("[OK] All servos -> CLOSED");
+    webLog("[OK] All servos -> CLOSED");
     printPrompt();
   }
   else {

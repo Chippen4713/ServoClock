@@ -14,6 +14,8 @@ void printServo(int s);
 void printAll();
 void setDefaults();
 void moveToStored(int servoNum, char state);
+void moveAllToOpen();
+void moveAllToClosed();
 void applyDigitPatternToServos(int result[28]);
 void setServoPower(bool enabled);
 void requestServoPowerHold();
