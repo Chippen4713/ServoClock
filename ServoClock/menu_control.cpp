@@ -174,8 +174,9 @@ void printSmoothMenu() {
   Serial.println("show             show current smooth settings");
   Serial.println("step <n>         set global step size");
   Serial.println("delay <n>        set global step delay ms");
-  Serial.println("test <n>         test selected servo with n pulse");
-  Serial.println("powerhold <n>    Tune how long servo power stays on");
+  Serial.println("powerhold <n>    set how long servo power stays on (ms)");
+  Serial.println("test <n>         test selected servo to pulse value");
+  Serial.println("w                save smooth settings to file");
   Serial.println("h                show this menu");
   Serial.println("m                back to main menu");
 }
@@ -209,6 +210,7 @@ void printWiFiMenu() {
   Serial.println("pass <password>        set WiFi password");
   Serial.println("connect                connect WiFi");
   Serial.println("disconnect             disconnect WiFi");
+  Serial.println("save                   save WiFi credentials to file");
   Serial.println("h                      show this menu");
   Serial.println("m                      back to main menu");
 }
@@ -302,8 +304,9 @@ static void webLogHelp(AppMode m) {
       webLog("show             show current smooth settings");
       webLog("step <n>         set global step size");
       webLog("delay <n>        set global step delay ms");
-      webLog("test <n>         test selected servo with n pulse");
-      webLog("powerhold <n>    Tune how long servo power stays on");
+      webLog("powerhold <n>    set how long servo power stays on (ms)");
+      webLog("test <n>         test selected servo to pulse value");
+      webLog("w                save smooth settings to file");
       webLog("h                show this menu");
       webLog("m                back to main menu");
       break;
@@ -340,6 +343,7 @@ static void webLogHelp(AppMode m) {
       webLog("pass <password>        set WiFi password");
       webLog("connect                connect WiFi");
       webLog("disconnect             disconnect WiFi");
+      webLog("save                   save WiFi credentials to file");
       webLog("h                      show this menu");
       webLog("m                      back to main menu");
       break;
@@ -796,14 +800,23 @@ void handleSmoothCommand(String cmd) {
       Serial.printf("[OK] Testing servo %d to target %u\n", selectedServo, target);
       printPrompt();
     }
-    else if (cmd.startsWith("powerhold ")) {
-      int v = cmd.substring(10).toInt();
+    else if (parseCommandIntArg(cmd, "powerhold ", v)) {
       if (v < 100) v = 100;
       servoPowerHoldMs = (unsigned long)v;
-      Serial.printf("Servo power hold = %lu ms\n", servoPowerHoldMs);
+      Serial.println();
+      Serial.printf("[OK] Servo power hold = %lu ms\n", servoPowerHoldMs);
+      webLogf("[OK] powerHold=%lu ms", servoPowerHoldMs);
+      printPrompt();
     }
-
-
+    else if (cmd == "w") {
+      if (saveCalibration()) {
+        printOk("Settings saved (smooth + calibration + WiFi)");
+      } else {
+        Serial.println();
+        Serial.println("[ERROR] Save failed");
+        printPrompt();
+      }
+    }
     else {
       printUnknownCommand("smooth");
     }
@@ -942,6 +955,15 @@ void handleWiFiCommand(String cmd) {
   else if (cmd == "disconnect") {
     WiFi.disconnect();
     printOk("WiFi disconnected");
+  }
+  else if (cmd == "save") {
+    if (saveCalibration()) {
+      printOk("WiFi credentials saved (SSID + password + all settings)");
+    } else {
+      Serial.println();
+      Serial.println("[ERROR] Save failed");
+      printPrompt();
+    }
   }
   else {
     printUnknownCommand("WiFi");
