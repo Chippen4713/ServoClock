@@ -37,6 +37,7 @@ void setServoPower(bool enabled) {
   digitalWrite(RELAY_BOARD1_PIN, enabled ? LOW : HIGH);
   digitalWrite(RELAY_BOARD2_PIN, enabled ? LOW : HIGH);
   servoPowerEnabled = enabled;
+  setBlueLed(enabled);
   Serial.printf("Servo power %s\n", enabled ? "ON" : "OFF");
 }
 
@@ -52,17 +53,12 @@ bool anyServoMoving() {
   return false;
 }
 
-static void updateBoardLeds() {
-  bool board1Moving = false;
-  bool board2Moving = false;
-  for (int i = 0; i <= 13; i++) {
-    if (currentPos[i] != servoTargetPos[i]) { board1Moving = true; break; }
-  }
-  for (int i = 14; i <= 27; i++) {
-    if (currentPos[i] != servoTargetPos[i]) { board2Moving = true; break; }
-  }
-  board1.setPWM(LED_BOARD1_PIN, 0, board1Moving ? 4095 : 0);
-  board2.setPWM(LED_BOARD2_PIN, 0, board2Moving ? 4095 : 0);
+void setGreenLed(bool on) {
+  board2.setPWM(LED_GREEN_CH, 0, on ? 4095 : 0);
+}
+
+void setBlueLed(bool on) {
+  board2.setPWM(LED_BLUE_CH, 0, on ? 4095 : 0);
 }
 
 void updateServoPower() {
@@ -116,8 +112,6 @@ void updateServoSmooth() {
 
     writeServoPwm(i, currentPos[i]);
   }
-
-  updateBoardLeds();
 }
 
 void moveSelected(int delta) {

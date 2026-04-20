@@ -18,8 +18,8 @@ void setup() {
   pinMode(PIR_PIN, INPUT);
   pinMode(RELAY_BOARD1_PIN, OUTPUT);
   pinMode(RELAY_BOARD2_PIN, OUTPUT);
-  pinMode(LED_ESP_PINT, OUTPUT);
   setServoPower(false);
+  dhtSensor.begin();
   Wire.begin(D2, D1);
 
   board1.begin();
@@ -35,8 +35,10 @@ void setup() {
   loadCalibration();
   loadClockSettings();
 
+  // Set current to open so smooth motion has distance to travel to closed
   for (int i = 0; i < 28; i++) {
-    currentPos[i] = cal[i].closed;
+    currentPos[i]     = cal[i].open;
+    servoTargetPos[i] = cal[i].open;
   }
 
   setupConnectivity();
@@ -46,6 +48,8 @@ void setup() {
     syncRtcFromNtp();
     connectMqtt();
   }
+
+  moveAllToClosed();  // triggers relay + sets all targets to closed
 
   setMode(MODE_MAIN);
   printServo(selectedServo);
@@ -71,6 +75,7 @@ void loop() {
   }
 
   maintainConnectivity();
+  updateSensors();
   updateWebInterface();
   updateServoSmooth();
   updateServoPower();

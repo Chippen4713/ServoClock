@@ -3,6 +3,7 @@
 #include "storage.h"
 #include "menu_control.h"
 #include "web_interface.h"
+#include "servo_control.h"
 
 static const char* TOPIC_SERIAL_IN        = "servo_clock/serial/in";
 static const char* TOPIC_STATE_SERIAL_IN  = "servo_clock/state/serial_in_last";
@@ -70,14 +71,10 @@ static unsigned long ledBlinkOffUntilMs = 0;
 
 void updateLedState() {
   if (!mqtt.connected()) {
-    digitalWrite(LED_ESP_PINT, LOW);
+    setGreenLed(false);
     return;
   }
-  if (millis() < ledBlinkOffUntilMs) {
-    digitalWrite(LED_ESP_PINT, LOW);
-  } else {
-    digitalWrite(LED_ESP_PINT, HIGH);
-  }
+  setGreenLed(millis() >= ledBlinkOffUntilMs);
 }
 
 void mqttPublishRetained(const char* topic, const String& payload) {
@@ -91,7 +88,7 @@ void mqttPublishRetained(const char* topic, const String& payload) {
 
   if (ok) {
     ledBlinkOffUntilMs = millis() + 80;
-    digitalWrite(LED_ESP_PINT, LOW);
+    setGreenLed(false);
   }
 
   Serial.print("[MQTT] ");
@@ -422,6 +419,90 @@ void publishDiscovery() {
     "}"
   );
 
+  mqttPublishRetained(
+    "homeassistant/sensor/servo_clock_temperature/config",
+    "{"
+    "\"name\":\"Servo Clock Temperature\","
+    "\"unique_id\":\"servo_clock_temperature\","
+    "\"state_topic\":\"servo_clock/state/temperature\","
+    "\"unit_of_measurement\":\"°C\","
+    "\"device_class\":\"temperature\","
+    "\"state_class\":\"measurement\","
+    "\"availability_topic\":\"servo_clock/status\","
+    "\"payload_available\":\"online\","
+    "\"payload_not_available\":\"offline\","
+    "\"device\":{"
+      "\"identifiers\":[\"servo_clock_device\"],"
+      "\"name\":\"Servo Clock\","
+      "\"manufacturer\":\"Custom\","
+      "\"model\":\"ESP8266 Servo Clock\""
+    "}"
+    "}"
+  );
+
+  mqttPublishRetained(
+    "homeassistant/sensor/servo_clock_humidity/config",
+    "{"
+    "\"name\":\"Servo Clock Humidity\","
+    "\"unique_id\":\"servo_clock_humidity\","
+    "\"state_topic\":\"servo_clock/state/humidity\","
+    "\"unit_of_measurement\":\"%\","
+    "\"device_class\":\"humidity\","
+    "\"state_class\":\"measurement\","
+    "\"availability_topic\":\"servo_clock/status\","
+    "\"payload_available\":\"online\","
+    "\"payload_not_available\":\"offline\","
+    "\"device\":{"
+      "\"identifiers\":[\"servo_clock_device\"],"
+      "\"name\":\"Servo Clock\","
+      "\"manufacturer\":\"Custom\","
+      "\"model\":\"ESP8266 Servo Clock\""
+    "}"
+    "}"
+  );
+
+  mqttPublishRetained(
+    "homeassistant/sensor/servo_clock_light/config",
+    "{"
+    "\"name\":\"Servo Clock Light\","
+    "\"unique_id\":\"servo_clock_light\","
+    "\"state_topic\":\"servo_clock/state/light\","
+    "\"unit_of_measurement\":\"%\","
+    "\"icon\":\"mdi:brightness-6\","
+    "\"state_class\":\"measurement\","
+    "\"availability_topic\":\"servo_clock/status\","
+    "\"payload_available\":\"online\","
+    "\"payload_not_available\":\"offline\","
+    "\"device\":{"
+      "\"identifiers\":[\"servo_clock_device\"],"
+      "\"name\":\"Servo Clock\","
+      "\"manufacturer\":\"Custom\","
+      "\"model\":\"ESP8266 Servo Clock\""
+    "}"
+    "}"
+  );
+
+  mqttPublishRetained(
+    "homeassistant/binary_sensor/servo_clock_motion/config",
+    "{"
+    "\"name\":\"Servo Clock Motion\","
+    "\"unique_id\":\"servo_clock_motion\","
+    "\"state_topic\":\"servo_clock/state/motion\","
+    "\"device_class\":\"motion\","
+    "\"payload_on\":\"ON\","
+    "\"payload_off\":\"OFF\","
+    "\"availability_topic\":\"servo_clock/status\","
+    "\"payload_available\":\"online\","
+    "\"payload_not_available\":\"offline\","
+    "\"device\":{"
+      "\"identifiers\":[\"servo_clock_device\"],"
+      "\"name\":\"Servo Clock\","
+      "\"manufacturer\":\"Custom\","
+      "\"model\":\"ESP8266 Servo Clock\""
+    "}"
+    "}"
+  );
+
   Serial.println("[HA] Discovery published");
 }
 
@@ -500,14 +581,45 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
 }
 
+void updateSensors() {
+  unsigned long now = millis();
+  if (now - lastSensorReadMs < 30000) return;
+  lastSensorReadMs = now;
+
+  // DHT11
+  float t = dhtSensor.readTemperature();
+  float h = dhtSensor.readHumidity();
+  if (!isnan(t)) sensorTemp     = t;
+  if (!isnan(h)) sensorHumidity = h;
+
+  // LDR — raw 0–1023, map to 0–100% (higher raw = more light on typical module)
+  sensorLight = map(analogRead(LDR_PIN), 0, 1023, 0, 100);
+
+  // PIR
+  bool motion = digitalRead(PIR_PIN) == HIGH;
+
+  Serial.printf("[SENSORS] temp=%.1f°C hum=%.0f%% light=%d%% pir=%s\n",
+                sensorTemp, sensorHumidity, sensorLight, motion ? "ON" : "OFF");
+
+  if (!mqtt.connected()) return;
+
+  if (!isnan(sensorTemp))     mqttPublishRetained(TOPIC_STATE_TEMP,     String(sensorTemp, 1));
+  if (!isnan(sensorHumidity)) mqttPublishRetained(TOPIC_STATE_HUMIDITY, String(sensorHumidity, 0));
+  mqttPublishRetained(TOPIC_STATE_LIGHT,  String(sensorLight));
+  mqttPublishRetained(TOPIC_STATE_MOTION, motion ? "ON" : "OFF");
+}
+
 void maintainConnectivity() {
   updateWiFi();
+  updateNtpSync();
+  updateLedState();
+
+  // Skip all blocking MQTT operations while servos are moving
+  if (anyServoMoving()) return;
 
   if (WiFi.status() == WL_CONNECTED && !ntpSynced && !ntpSyncInProgress) {
     startNtpSync();
   }
-
-  updateNtpSync();
 
   if (WiFi.status() == WL_CONNECTED) {
     if (!mqtt.connected()) {
@@ -515,14 +627,11 @@ void maintainConnectivity() {
       if (now - lastMqttReconnectAttempt > 5000) {
         lastMqttReconnectAttempt = now;
         connectMqtt();
-        
       }
     } else {
       mqtt.loop();
     }
   }
-
-  updateLedState();
 
   if (mqtt.connected() && millis() - lastWifiStatePublish > 60000) {
     lastWifiStatePublish = millis();

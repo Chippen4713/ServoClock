@@ -10,6 +10,7 @@
 #include <virtuabotixRTC.h>
 #include <time.h>
 #include <TZ.h>
+#include <DHT.h>
 
 struct ServoCal {
   uint16_t open;
@@ -17,11 +18,18 @@ struct ServoCal {
   bool inverted;
 };
 
-extern const int LED_ESP_PINT;
-extern const int LED_BOARD1_PIN;
-extern const int LED_BOARD2_PIN;
 extern const int RELAY_BOARD1_PIN;
 extern const int RELAY_BOARD2_PIN;
+extern const int DHT_PIN;
+extern const int LDR_PIN;
+extern const int LED_GREEN_CH;
+extern const int LED_BLUE_CH;
+
+extern DHT dhtSensor;
+extern float sensorTemp;
+extern float sensorHumidity;
+extern int   sensorLight;
+extern unsigned long lastSensorReadMs;
 extern bool servoPowerEnabled;
 extern unsigned long servoPowerOffAtMs;
 extern unsigned long servoPowerHoldMs;
@@ -115,6 +123,11 @@ extern const char* TOPIC_STATE_RTC_TIME;
 extern const char* TOPIC_CMD_RUNNING;
 extern const char* TOPIC_CMD_SYNC_RTC;
 extern const char* TOPIC_CMD_TIMEZONE;
+
+extern const char* TOPIC_STATE_TEMP;
+extern const char* TOPIC_STATE_HUMIDITY;
+extern const char* TOPIC_STATE_LIGHT;
+extern const char* TOPIC_STATE_MOTION;
 
 extern AppMode currentMode;
 

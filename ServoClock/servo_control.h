@@ -21,5 +21,7 @@ void setServoPower(bool enabled);
 void requestServoPowerHold();
 void updateServoPower();
 bool anyServoMoving();
+void setGreenLed(bool on);
+void setBlueLed(bool on);
 
 #endif
