@@ -18,7 +18,10 @@ void setup() {
   pinMode(PIR_PIN, INPUT);
   pinMode(RELAY_BOARD1_PIN, OUTPUT);
   pinMode(RELAY_BOARD2_PIN, OUTPUT);
-  setServoPower(false);
+  // Set relays off directly — boards not yet ready, can't call setServoPower yet
+  digitalWrite(RELAY_BOARD1_PIN, HIGH);
+  digitalWrite(RELAY_BOARD2_PIN, HIGH);
+
   dhtSensor.begin();
   Wire.begin(D2, D1);
 
@@ -26,6 +29,9 @@ void setup() {
   board2.begin();
   board1.setPWMFreq(50);
   board2.setPWMFreq(50);
+
+  // Now I2C is up — safe to call setServoPower (it drives board2 LEDs)
+  setServoPower(false);
 
   if (!LittleFS.begin()) {
     Serial.println("LittleFS mount failed");
