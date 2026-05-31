@@ -11,14 +11,16 @@ A 7-segment clock built from 28 hobby servos — each segment is a physical flap
 
 | | Original (OTVINTA) | This build |
 |---|---|---|
-| Controller | Raspberry Pi 3 | ESP8266 NodeMCU |
+| Controller | Raspberry Pi 3 | ESP8266 D1 Mini |
 | Servo drivers | 2× Pololu Maestro | 2× PCA9685 (I²C) |
 | Software | UWP app on Windows IoT | Arduino firmware |
 | Connectivity | Local only | WiFi + MQTT |
 | Home automation | None | Home Assistant auto-discovery |
 | Time sync | Manual | NTP over WiFi |
 | RTC backup | None | DS1302 |
+| LED strip | None | 56× NeoPixel (WS2812B) |
 | Terminal | Windows app | Serial + TCP on port 23 |
+| OTA updates | None | ArduinoOTA over WiFi |
 | Settings storage | Config file on Pi | LittleFS on ESP8266 |
 
 ---
@@ -27,14 +29,14 @@ A 7-segment clock built from 28 hobby servos — each segment is a physical flap
 
 | Component | Details |
 |---|---|
-| Microcontroller | ESP8266 NodeMCU v2 |
+| Microcontroller | ESP8266 D1 Mini |
 | Servo drivers | 2× PCA9685 (I²C, 0x40 and 0x41) |
 | Servos | 28× SG90 hobby servos |
 | RTC | DS1302 (D0=CLK, D3=DAT, D4=CE) |
+| NeoPixel strip | 56× WS2812B LEDs on D7 |
 | Relay boards | 2× relay modules for servo power (D5, D6) |
-| PIR sensor | Motion sensor on D8 |
-| Status LED | WiFi/MQTT activity LED on D7 |
-| Board LEDs | PCA9685 channel 14 on each board (lights when servos on that board are moving) |
+| Green status LED | PCA9685 board2 ch14 — blinks on MQTT publish |
+| Blue PSU LED | PCA9685 board2 ch15 — on when servo power is on |
 
 ### Wiring
 
@@ -61,10 +63,12 @@ PCA9685 #2 (0x41) → Servos 14–27 + activity LED on channel 14
 - **RTC backup** — DS1302 keeps time when WiFi is unavailable
 - **Smooth servo motion** — configurable step size and step delay
 - **Auto servo power** — relay cuts power after servos finish moving (saves heat and power)
+- **NeoPixel LED strip** — 56 LEDs with solid, breathing, rainbow and sparkle effects; controllable from HA
 - **Home Assistant integration** — MQTT auto-discovery, full control from HA dashboard
 - **TCP terminal** — connect on port 23 (`telnet <ip> 23`) for a full interactive menu matching the serial output
+- **OTA updates** — flash new firmware wirelessly via Arduino IDE or `espota.py`; hostname `servo-clock`
+- **WiFi watchdog** — force-disconnects before reconnect to clear zombie connections; MQTT fail counter triggers full WiFi reset after 5 consecutive failures (~25s)
 - **Persistent settings** — calibration, smooth settings, WiFi credentials and timezone all saved to LittleFS
-- **PIR motion sensor** — ready for wake-on-motion logic
 
 ---
 
@@ -83,6 +87,7 @@ The `.stl` files are also included in this repository.
 |---|---|
 | `esp8266` board package | via Board Manager |
 | `Adafruit PWM Servo Driver` | for PCA9685 |
+| `Adafruit NeoPixel` | for LED strip |
 | `PubSubClient` | MQTT |
 | `ArduinoJson` 6.x | settings storage |
 | `virtuabotixRTC` | DS1302 RTC |
@@ -105,7 +110,7 @@ Copy `ServoClock/secrets.h.example` to `ServoClock/secrets.h` and fill in your v
 
 ### 4. Upload
 
-Board: **NodeMCU 1.0 (ESP-12E Module)**
+Board: **LOLIN(WEMOS) D1 mini**
 
 Compile and upload via Arduino IDE or `arduino-cli`.
 
