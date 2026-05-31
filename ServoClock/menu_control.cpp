@@ -4,6 +4,7 @@
 #include "storage.h"
 #include "connectivity.h"
 #include "web_interface.h"
+#include "neopixel_control.h"
 
 #include <stdlib.h>
 
@@ -99,7 +100,6 @@ static void showCurrentMenu() {
     case MODE_SERVO_CAL: printServoMenu(); break;
     case MODE_SMOOTH:    printSmoothMenu(); break;
     case MODE_RTC:       printRTCMenu(); break;
-    case MODE_MOTION:    printMotionMenu(); break;
     case MODE_WIFI:      printWiFiMenu(); break;
     case MODE_RUN:       printRunMenu(); break;
     default: break;
@@ -114,11 +114,17 @@ void printMainMenu() {
   Serial.println("1  -> Servo calibration");
   Serial.println("2  -> Smooth settings");
   Serial.println("3  -> RTC menu");
-  Serial.println("4  -> Motion sensor menu");
-  Serial.println("5  -> WiFi / Internet menu");
-  Serial.println("6  -> Run clock mode");
-  Serial.println("7  -> Show calibration");
+  Serial.println("4  -> WiFi / Internet menu");
+  Serial.println("5  -> Run clock mode");
+  Serial.println("6  -> Show calibration");
   Serial.println("h  -> Show this menu");
+  Serial.println();
+  Serial.println("LED (works from any menu):");
+  Serial.println("  led on              turn strip on");
+  Serial.println("  led off             turn strip off");
+  Serial.println("  led color <r> <g> <b>  set RGB color (0-255 each)");
+  Serial.println("  led brightness <n>  set brightness (0-255)");
+  Serial.println("  led effect <name>   solid / breathing / rainbow / sparkle");
 }
 
 void printServoMenu() {
@@ -192,14 +198,6 @@ void printRTCMenu() {
   Serial.println("m                back to main menu");
 }
 
-void printMotionMenu() {
-  printSection("MOTION MENU");
-
-  Serial.println("read             read PIR pin");
-  Serial.println("watch            live PIR monitor for 10 sec");
-  Serial.println("h                show this menu");
-  Serial.println("m                back to main menu");
-}
 
 void printWiFiMenu() {
   printSection("WIFI MENU");
@@ -233,7 +231,6 @@ static const char* modeName(AppMode m) {
     case MODE_SERVO_CAL: return "SERVO CAL";
     case MODE_SMOOTH:    return "SMOOTH";
     case MODE_RTC:       return "RTC";
-    case MODE_MOTION:    return "MOTION";
     case MODE_WIFI:      return "WIFI";
     case MODE_RUN:       return "RUN";
     default:             return "?";
@@ -249,11 +246,15 @@ static void webLogHelp(AppMode m) {
       webLog("1  -> Servo calibration");
       webLog("2  -> Smooth settings");
       webLog("3  -> RTC menu");
-      webLog("4  -> Motion sensor menu");
-      webLog("5  -> WiFi / Internet menu");
-      webLog("6  -> Run clock mode");
-      webLog("7  -> Show calibration");
+      webLog("4  -> WiFi / Internet menu");
+      webLog("5  -> Run clock mode");
+      webLog("6  -> Show calibration");
       webLog("h  -> Show this menu");
+      webLog("");
+      webLog("LED (any menu): led on / led off");
+      webLog("  led color <r> <g> <b>");
+      webLog("  led brightness <n>");
+      webLog("  led effect solid/breathing/rainbow/sparkle");
       break;
 
     case MODE_SERVO_CAL:
@@ -323,15 +324,6 @@ static void webLogHelp(AppMode m) {
       webLog("m                back to main menu");
       break;
 
-    case MODE_MOTION:
-      webLog("=================================");
-      webLog("  MOTION MENU");
-      webLog("=================================");
-      webLog("read             read PIR pin");
-      webLog("watch            live PIR monitor for 10 sec");
-      webLog("h                show this menu");
-      webLog("m                back to main menu");
-      break;
 
     case MODE_WIFI:
       webLog("=================================");
@@ -859,35 +851,6 @@ void handleRTCCommand(String cmd) {
   }
 }
 
-void handleMotionCommand(String cmd) {
-  cmd.trim();
-
-  if (cmd == "h") {
-    showCurrentMenu();
-    webLogHelp(MODE_MOTION);
-  }
-  else if (cmd == "m") {
-    setMode(MODE_MAIN);
-  }
-  else if (cmd == "read") {
-    int pirVal = digitalRead(PIR_PIN);
-    Serial.println();
-    Serial.printf("[OK] PIR state = %d\n", pirVal);
-    webLogf("[OK] PIR = %d", pirVal);
-    printPrompt();
-  }
-  else if (cmd == "watch") {
-    Serial.println();
-    for (unsigned long start = millis(); millis() - start < 10000;) {
-      Serial.printf("PIR = %d\n", digitalRead(PIR_PIN));
-      delay(500);
-    }
-    printPrompt();
-  }
-  else {
-    printUnknownCommand("motion");
-  }
-}
 
 void handleWiFiCommand(String cmd) {
   cmd.trim();
@@ -989,15 +952,12 @@ void handleMainCommand(String cmd) {
     setMode(MODE_RTC);
   }
   else if (cmd == "4") {
-    setMode(MODE_MOTION);
-  }
-  else if (cmd == "5") {
     setMode(MODE_WIFI);
   }
-  else if (cmd == "6") {
+  else if (cmd == "5") {
     setMode(MODE_RUN);
   }
-  else if (cmd == "7") {
+  else if (cmd == "6") {
     Serial.println();
     printAll();
     printPrompt();
@@ -1049,13 +1009,73 @@ void handleRunCommand(String cmd) {
   }
 }
 
+static bool handleLedSerialCommand(const String& cmd) {
+  if (!cmd.startsWith("led")) return false;
+  if (cmd.length() > 3 && cmd[3] != ' ') return false;
+
+  String arg = cmd.length() > 4 ? cmd.substring(4) : "";
+  arg.trim();
+
+  if (arg == "on") {
+    setLedsOn(true);
+    printOk("LED strip ON");
+    return true;
+  }
+  if (arg == "off") {
+    setLedsOn(false);
+    printOk("LED strip OFF");
+    return true;
+  }
+  if (arg.startsWith("effect ")) {
+    String name = arg.substring(7);
+    name.trim();
+    if      (name == "breathing") setLedEffect(EFFECT_BREATHING);
+    else if (name == "rainbow")   setLedEffect(EFFECT_RAINBOW);
+    else if (name == "sparkle")   setLedEffect(EFFECT_SPARKLE);
+    else                          setLedEffect(EFFECT_SOLID);
+    printOk(("Effect: " + name).c_str());
+    return true;
+  }
+  if (arg.startsWith("brightness ")) {
+    int v = arg.substring(11).toInt();
+    if (v < 0) v = 0;
+    if (v > 255) v = 255;
+    setLedBrightness((uint8_t)v);
+    char buf[24];
+    snprintf(buf, sizeof(buf), "Brightness: %d", v);
+    printOk(buf);
+    return true;
+  }
+  if (arg.startsWith("color ")) {
+    String rest = arg.substring(6);
+    int idx = 0;
+    String w;
+    int r = 0, g = 0, b = 0;
+    if (nextWord(rest, idx, w)) r = w.toInt();
+    if (nextWord(rest, idx, w)) g = w.toInt();
+    if (nextWord(rest, idx, w)) b = w.toInt();
+    setLedColor((uint8_t)r, (uint8_t)g, (uint8_t)b);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "Color: %d %d %d", r, g, b);
+    printOk(buf);
+    return true;
+  }
+
+  Serial.println();
+  Serial.println("LED commands: led on / led off / led color <r> <g> <b>");
+  Serial.println("              led brightness <n> / led effect <name>");
+  printPrompt();
+  return true;
+}
+
 void routeCommand(String cmd) {
+  if (handleLedSerialCommand(cmd)) return;
+
   switch (currentMode) {
     case MODE_MAIN:      handleMainCommand(cmd); break;
     case MODE_SERVO_CAL: handleServoCommand(cmd); break;
     case MODE_SMOOTH:    handleSmoothCommand(cmd); break;
     case MODE_RTC:       handleRTCCommand(cmd); break;
-    case MODE_MOTION:    handleMotionCommand(cmd); break;
     case MODE_WIFI:      handleWiFiCommand(cmd); break;
     case MODE_RUN:       handleRunCommand(cmd); break;
 

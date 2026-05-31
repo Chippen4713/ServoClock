@@ -1,4 +1,5 @@
 #include "storage.h"
+#include "neopixel_control.h"
 
 bool saveCalibration() {
   DynamicJsonDocument doc(4096);
@@ -23,6 +24,9 @@ bool saveCalibration() {
 
   // Clock / timezone
   doc["timezone"] = currentTimezoneName;
+
+  // LED state
+  doc["ledsOn"] = ledsOn;
 
   File f = LittleFS.open(CAL_FILE, "w");
   if (!f) return false;
@@ -65,6 +69,9 @@ bool loadCalibration() {
   // Timezone
   String tzName = doc["timezone"] | "Europe/Copenhagen";
   setTimezoneByName(tzName);
+
+  // LED state
+  if (doc.containsKey("ledsOn")) setLedsOn(doc["ledsOn"].as<bool>());
 
   return true;
 }

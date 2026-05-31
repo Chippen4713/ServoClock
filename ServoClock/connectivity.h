@@ -24,7 +24,6 @@ bool syncRtcFromNtp();
 void publishDiscovery();
 void publishStates();
 void publishClockTimeState(int hour, int minute);
-void updateSensors();
 void maintainConnectivity();
 
 #endif

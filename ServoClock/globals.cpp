@@ -7,20 +7,11 @@ Adafruit_PWMServoDriver board2(0x40);
 virtuabotixRTC clockRTC(D0, D3, D4);
 const int RELAY_BOARD1_PIN = D5;
 const int RELAY_BOARD2_PIN = D6;
-const int PIR_PIN = D8;
-const int DHT_PIN = D7;
-const int LDR_PIN = A0;
 const int LED_GREEN_CH = 14;  // board2 ch14 — online (WiFi+MQTT)
 const int LED_BLUE_CH  = 15;  // board2 ch15 — PSU on
 
-DHT dhtSensor(D7, DHT11);
-float sensorTemp     = NAN;
-float sensorHumidity = NAN;
-int   sensorLight    = 0;
-unsigned long lastSensorReadMs = 0;
-
-
-
+Adafruit_NeoPixel strip(NEOPIXEL_COUNT, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
+bool ledsOn = true;
 
 bool servoPowerEnabled = false;
 unsigned long servoPowerOffAtMs = 0;
@@ -47,6 +38,7 @@ bool ntpSynced = false;
 unsigned long lastMqttReconnectAttempt = 0;
 unsigned long lastWifiStatePublish = 0;
 unsigned long lastClockCheck = 0;
+int mqttFailCount = 0;
 
 int p0[7] = {1, 1, 1, 0, 1, 1, 1};
 int p1[7] = {0, 0, 1, 0, 0, 1, 0};
@@ -94,10 +86,8 @@ const char* TOPIC_CMD_RUNNING     = "servo_clock/cmd/running";
 const char* TOPIC_CMD_SYNC_RTC    = "servo_clock/cmd/sync_rtc";
 const char* TOPIC_CMD_TIMEZONE    = "servo_clock/cmd/timezone";
 
-const char* TOPIC_STATE_TEMP      = "servo_clock/state/temperature";
-const char* TOPIC_STATE_HUMIDITY  = "servo_clock/state/humidity";
-const char* TOPIC_STATE_LIGHT     = "servo_clock/state/light";
-const char* TOPIC_STATE_MOTION    = "servo_clock/state/motion";
+const char* TOPIC_LIGHT_CMD       = "servo_clock/cmd/light";
+const char* TOPIC_LIGHT_STATE     = "servo_clock/state/light";
 
 TimezoneOption tzOptions[] = {
   {"Europe/Copenhagen", "CET-1CEST,M3.5.0,M10.5.0/3"},

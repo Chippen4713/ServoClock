@@ -6,11 +6,15 @@
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
+#include <ArduinoOTA.h>
 #include <PubSubClient.h>
 #include <virtuabotixRTC.h>
 #include <time.h>
 #include <TZ.h>
-#include <DHT.h>
+#include <Adafruit_NeoPixel.h>
+
+#define NEOPIXEL_PIN   D7
+#define NEOPIXEL_COUNT 56
 
 struct ServoCal {
   uint16_t open;
@@ -20,16 +24,12 @@ struct ServoCal {
 
 extern const int RELAY_BOARD1_PIN;
 extern const int RELAY_BOARD2_PIN;
-extern const int DHT_PIN;
-extern const int LDR_PIN;
 extern const int LED_GREEN_CH;
 extern const int LED_BLUE_CH;
 
-extern DHT dhtSensor;
-extern float sensorTemp;
-extern float sensorHumidity;
-extern int   sensorLight;
-extern unsigned long lastSensorReadMs;
+extern Adafruit_NeoPixel strip;
+extern bool ledsOn;
+
 extern bool servoPowerEnabled;
 extern unsigned long servoPowerOffAtMs;
 extern unsigned long servoPowerHoldMs;
@@ -55,7 +55,6 @@ enum AppMode {
   MODE_SERVO_CAL,
   MODE_SMOOTH,
   MODE_RTC,
-  MODE_MOTION,
   MODE_WIFI,
   MODE_RUN
 };
@@ -77,6 +76,7 @@ extern bool clockRunning;
 extern bool ntpSynced;
 
 extern unsigned long lastMqttReconnectAttempt;
+extern int mqttFailCount;
 extern unsigned long lastWifiStatePublish;
 extern unsigned long lastClockCheck;
 
@@ -91,8 +91,6 @@ extern int p7[7];
 extern int p8[7];
 extern int p9[7];
 extern int* digits[10];
-
-extern const int PIR_PIN;
 
 extern bool wifiConnecting;
 extern bool ntpSyncInProgress;
@@ -124,10 +122,8 @@ extern const char* TOPIC_CMD_RUNNING;
 extern const char* TOPIC_CMD_SYNC_RTC;
 extern const char* TOPIC_CMD_TIMEZONE;
 
-extern const char* TOPIC_STATE_TEMP;
-extern const char* TOPIC_STATE_HUMIDITY;
-extern const char* TOPIC_STATE_LIGHT;
-extern const char* TOPIC_STATE_MOTION;
+extern const char* TOPIC_LIGHT_CMD;
+extern const char* TOPIC_LIGHT_STATE;
 
 extern AppMode currentMode;
 

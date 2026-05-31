@@ -4,9 +4,35 @@
 #include "menu_control.h"
 #include "web_interface.h"
 #include "servo_control.h"
+#include "neopixel_control.h"
+#include "secrets.h"
 
 static const char* TOPIC_SERIAL_IN        = "servo_clock/serial/in";
 static const char* TOPIC_STATE_SERIAL_IN  = "servo_clock/state/serial_in_last";
+
+static bool otaStarted = false;
+
+static void setupOTA() {
+  ArduinoOTA.setHostname(WIFI_HOSTNAME);
+  ArduinoOTA.setPassword(SECRET_OTA_PASS);
+
+  ArduinoOTA.onStart([]() {
+    Serial.println("[OTA] Starting upload...");
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("[OTA] Upload complete — rebooting");
+  });
+  ArduinoOTA.onProgress([](unsigned int done, unsigned int total) {
+    Serial.printf("[OTA] %u%%\r", done * 100 / total);
+  });
+  ArduinoOTA.onError([](ota_error_t err) {
+    Serial.printf("[OTA] Error(%u)\n", err);
+  });
+
+  ArduinoOTA.begin();
+  otaStarted = true;
+  Serial.printf("[OTA] Ready -- hostname: %s\n", WIFI_HOSTNAME);
+}
 
 void setupConnectivity() {
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
@@ -33,6 +59,9 @@ void startWiFiConnect() {
   if (wifiSSID.length() == 0) return;
 
   Serial.printf("Connecting to %s\n", wifiSSID.c_str());
+  WiFi.disconnect(true);
+  delay(100);
+  WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
   WiFi.hostname(WIFI_HOSTNAME);
   WiFi.setAutoReconnect(true);
@@ -58,6 +87,7 @@ void updateWiFi() {
       Serial.println("WiFi connected");
       printWiFiStatus();
       setupWebInterface();
+      if (!otaStarted) setupOTA();
     }
     return;
   }
@@ -420,77 +450,17 @@ void publishDiscovery() {
   );
 
   mqttPublishRetained(
-    "homeassistant/sensor/servo_clock_temperature/config",
+    "homeassistant/light/servo_clock_strip/config",
     "{"
-    "\"name\":\"Servo Clock Temperature\","
-    "\"unique_id\":\"servo_clock_temperature\","
-    "\"state_topic\":\"servo_clock/state/temperature\","
-    "\"unit_of_measurement\":\"°C\","
-    "\"device_class\":\"temperature\","
-    "\"state_class\":\"measurement\","
-    "\"availability_topic\":\"servo_clock/status\","
-    "\"payload_available\":\"online\","
-    "\"payload_not_available\":\"offline\","
-    "\"device\":{"
-      "\"identifiers\":[\"servo_clock_device\"],"
-      "\"name\":\"Servo Clock\","
-      "\"manufacturer\":\"Custom\","
-      "\"model\":\"ESP8266 Servo Clock\""
-    "}"
-    "}"
-  );
-
-  mqttPublishRetained(
-    "homeassistant/sensor/servo_clock_humidity/config",
-    "{"
-    "\"name\":\"Servo Clock Humidity\","
-    "\"unique_id\":\"servo_clock_humidity\","
-    "\"state_topic\":\"servo_clock/state/humidity\","
-    "\"unit_of_measurement\":\"%\","
-    "\"device_class\":\"humidity\","
-    "\"state_class\":\"measurement\","
-    "\"availability_topic\":\"servo_clock/status\","
-    "\"payload_available\":\"online\","
-    "\"payload_not_available\":\"offline\","
-    "\"device\":{"
-      "\"identifiers\":[\"servo_clock_device\"],"
-      "\"name\":\"Servo Clock\","
-      "\"manufacturer\":\"Custom\","
-      "\"model\":\"ESP8266 Servo Clock\""
-    "}"
-    "}"
-  );
-
-  mqttPublishRetained(
-    "homeassistant/sensor/servo_clock_light/config",
-    "{"
-    "\"name\":\"Servo Clock Light\","
-    "\"unique_id\":\"servo_clock_light\","
+    "\"name\":\"Servo Clock Strip\","
+    "\"unique_id\":\"servo_clock_strip\","
+    "\"schema\":\"json\","
     "\"state_topic\":\"servo_clock/state/light\","
-    "\"unit_of_measurement\":\"%\","
-    "\"icon\":\"mdi:brightness-6\","
-    "\"state_class\":\"measurement\","
-    "\"availability_topic\":\"servo_clock/status\","
-    "\"payload_available\":\"online\","
-    "\"payload_not_available\":\"offline\","
-    "\"device\":{"
-      "\"identifiers\":[\"servo_clock_device\"],"
-      "\"name\":\"Servo Clock\","
-      "\"manufacturer\":\"Custom\","
-      "\"model\":\"ESP8266 Servo Clock\""
-    "}"
-    "}"
-  );
-
-  mqttPublishRetained(
-    "homeassistant/binary_sensor/servo_clock_motion/config",
-    "{"
-    "\"name\":\"Servo Clock Motion\","
-    "\"unique_id\":\"servo_clock_motion\","
-    "\"state_topic\":\"servo_clock/state/motion\","
-    "\"device_class\":\"motion\","
-    "\"payload_on\":\"ON\","
-    "\"payload_off\":\"OFF\","
+    "\"command_topic\":\"servo_clock/cmd/light\","
+    "\"supported_color_modes\":[\"rgb\"],"
+    "\"brightness_scale\":255,"
+    "\"effect\":true,"
+    "\"effect_list\":[\"solid\",\"breathing\",\"rainbow\",\"sparkle\"],"
     "\"availability_topic\":\"servo_clock/status\","
     "\"payload_available\":\"online\","
     "\"payload_not_available\":\"offline\","
@@ -523,10 +493,12 @@ bool connectMqtt() {
     mqtt.subscribe(TOPIC_CMD_RUNNING);
     mqtt.subscribe(TOPIC_CMD_SYNC_RTC);
     mqtt.subscribe(TOPIC_CMD_TIMEZONE);
+    mqtt.subscribe(TOPIC_LIGHT_CMD);
     mqtt.subscribe(TOPIC_SERIAL_IN);
 
     publishDiscovery();
     publishStates();
+    publishLedState();
     return true;
   }
 
@@ -574,6 +546,11 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     return;
   }
 
+  if (topicStr == TOPIC_LIGHT_CMD) {
+    handleLedCommand(msg);
+    return;
+  }
+
   if (topicStr == TOPIC_SERIAL_IN) {
     mqttPublishRetained(TOPIC_STATE_SERIAL_IN, msg);
     routeCommand(msg);
@@ -581,55 +558,40 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
 }
 
-void updateSensors() {
-  unsigned long now = millis();
-  if (now - lastSensorReadMs < 30000) return;
-  lastSensorReadMs = now;
-
-  // DHT11
-  float t = dhtSensor.readTemperature();
-  float h = dhtSensor.readHumidity();
-  if (!isnan(t)) sensorTemp     = t;
-  if (!isnan(h)) sensorHumidity = h;
-
-  // LDR — raw 0–1023, map to 0–100% (higher raw = more light on typical module)
-  sensorLight = map(analogRead(LDR_PIN), 0, 1023, 0, 100);
-
-  // PIR
-  bool motion = digitalRead(PIR_PIN) == HIGH;
-
-  Serial.printf("[SENSORS] temp=%.1f°C hum=%.0f%% light=%d%% pir=%s\n",
-                sensorTemp, sensorHumidity, sensorLight, motion ? "ON" : "OFF");
-
-  if (!mqtt.connected()) return;
-
-  if (!isnan(sensorTemp))     mqttPublishRetained(TOPIC_STATE_TEMP,     String(sensorTemp, 1));
-  if (!isnan(sensorHumidity)) mqttPublishRetained(TOPIC_STATE_HUMIDITY, String(sensorHumidity, 0));
-  mqttPublishRetained(TOPIC_STATE_LIGHT,  String(sensorLight));
-  mqttPublishRetained(TOPIC_STATE_MOTION, motion ? "ON" : "OFF");
-}
-
 void maintainConnectivity() {
+  if (otaStarted) ArduinoOTA.handle();
+
   updateWiFi();
   updateNtpSync();
   updateLedState();
 
-  // Skip all blocking MQTT operations while servos are moving
+  // Always process incoming MQTT messages — never block on servo movement
+  if (WiFi.status() == WL_CONNECTED && mqtt.connected()) {
+    mqtt.loop();
+  }
+
+  // Skip reconnect attempts and NTP while servos are moving
   if (anyServoMoving()) return;
 
   if (WiFi.status() == WL_CONNECTED && !ntpSynced && !ntpSyncInProgress) {
     startNtpSync();
   }
 
-  if (WiFi.status() == WL_CONNECTED) {
-    if (!mqtt.connected()) {
-      unsigned long now = millis();
-      if (now - lastMqttReconnectAttempt > 5000) {
-        lastMqttReconnectAttempt = now;
-        connectMqtt();
+  if (WiFi.status() == WL_CONNECTED && !mqtt.connected()) {
+    unsigned long now = millis();
+    if (now - lastMqttReconnectAttempt > 5000) {
+      lastMqttReconnectAttempt = now;
+      if (connectMqtt()) {
+        mqttFailCount = 0;
+      } else {
+        mqttFailCount++;
+        Serial.printf("[MQTT] Fail count: %d\n", mqttFailCount);
+        if (mqttFailCount >= 5) {
+          Serial.println("[WiFi] MQTT repeatedly failed — forcing WiFi reconnect");
+          mqttFailCount = 0;
+          startWiFiConnect();
+        }
       }
-    } else {
-      mqtt.loop();
     }
   }
 

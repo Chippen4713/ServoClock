@@ -74,6 +74,7 @@ void startClock() {
 
 void stopClock() {
   clockRunning = false;
+  moveAllToClosed();
   mqttPublishRetained(TOPIC_STATE_RUNNING, "OFF");
   Serial.println("Clock stopped");
   webLog("[SYS] Clock stopped");

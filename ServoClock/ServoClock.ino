@@ -5,6 +5,7 @@
 #include "connectivity.h"
 #include "menu_control.h"
 #include "web_interface.h"
+#include "neopixel_control.h"
 
 void setup() {
   Serial.begin(115200);
@@ -15,14 +16,13 @@ void setup() {
   Serial.println("Servo Clock Program");
   Serial.println("====================================");
 
-  pinMode(PIR_PIN, INPUT);
   pinMode(RELAY_BOARD1_PIN, OUTPUT);
   pinMode(RELAY_BOARD2_PIN, OUTPUT);
   // Set relays off directly — boards not yet ready, can't call setServoPower yet
   digitalWrite(RELAY_BOARD1_PIN, HIGH);
   digitalWrite(RELAY_BOARD2_PIN, HIGH);
 
-  dhtSensor.begin();
+  setupNeoPixel();
   Wire.begin(D2, D1);
 
   board1.begin();
@@ -81,10 +81,10 @@ void loop() {
   }
 
   maintainConnectivity();
-  updateSensors();
   updateWebInterface();
   updateServoSmooth();
   updateServoPower();
+  updateLedAnimation();
 
   if (clockRunning) {
     updateClock();
